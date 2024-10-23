@@ -3,7 +3,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-class GetGoodsResponse(BaseModel):
+class GetGoodsListResponse(BaseModel):
     id: int
     brand_name: str
     product_name: str
@@ -76,3 +76,8 @@ class CartResponse(BaseModel):
     price: int
     discounted_price: int
     quantity: int
+
+
+class GetGoodsPageResponse(BaseModel):
+    products: list[GetGoodsListResponse]
+    next_search_after: Optional[list[int]]
