@@ -1,18 +1,25 @@
 import re
-from typing import List
 
 from fastapi import Depends, HTTPException, Query
 
 from src.models.repository import ElasticsearchRepository
-from src.schema.response import GetGoodsDetailResponse, GetGoodsResponse
+from src.schema.response import (
+    GetGoodsDetailResponse,
+    GetGoodsListResponse,
+    GetGoodsPageResponse,
+)
 
 
 async def get_goods_list_handler(
     category: str = Query(default=None, max_length=15),
+    search_after: list[int] = Query(default=None),
+    pit_id: str = Query(default=None),
     es_repo: ElasticsearchRepository = Depends(ElasticsearchRepository),
-) -> List[GetGoodsResponse]:
+) -> GetGoodsPageResponse:
     if not category:
-        goods_list: List[dict] = await es_repo.get_product_list()
+        goods_list, next_search_after, new_pit_id = await es_repo.get_product_list(
+            search_after=search_after, pit_id=pit_id
+        )
     else:
         match = re.match(r"(\D+)(\d+)", category)
         if not match:
@@ -20,15 +27,22 @@ async def get_goods_list_handler(
 
         category_type, category_id = match.groups()
 
-        goods_list = await es_repo.get_product_list_by_category(
-            category_type, category_id
+        (
+            goods_list,
+            next_search_after,
+            new_pit_id,
+        ) = await es_repo.get_product_list_by_category(
+            category_type=category_type,
+            category_id=category_id,
+            search_after=search_after,
+            pit_id=pit_id,
         )
 
     if goods_list is None:
         goods_list = []
 
-    return [
-        GetGoodsResponse(
+    response = [
+        GetGoodsListResponse(
             id=goods["id"],
             brand_name=goods["brand_name"],
             product_name=goods["product_name"],
@@ -37,6 +51,10 @@ async def get_goods_list_handler(
         )
         for goods in goods_list
     ]
+
+    return GetGoodsPageResponse(
+        products=response, next_search_after=next_search_after, pit_id=new_pit_id
+    )
 
 
 async def get_goods_by_id_handler(
@@ -54,24 +72,38 @@ async def get_goods_by_id_handler(
 
 
 async def search_goods_handler(
-    keyword: str, es_repo: ElasticsearchRepository = Depends(ElasticsearchRepository)
-) -> List[GetGoodsResponse]:
+    keyword: str,
+    search_after: list[int] = Query(default=None),
+    pit_id: str = Query(default=None),
+    es_repo: ElasticsearchRepository = Depends(ElasticsearchRepository),
+) -> GetGoodsPageResponse:
     if not keyword:
         raise HTTPException(
             status_code=422, detail="Keyword is required and cannot be empty."
         )
 
-    products = await es_repo.search_products(keyword)
+    goods_list, next_search_after, new_pit_id = await es_repo.search_products(
+        keyword=keyword, search_after=search_after, pit_id=pit_id
+    )
 
     response = [
-        GetGoodsResponse(
-            id=product["id"],
-            brand_name=product["brand_name"],
-            product_name=product["product_name"],
-            price=product["price"],
-            discounted_price=product["discounted_price"],
+        GetGoodsListResponse(
+            id=goods["id"],
+            brand_name=goods["brand_name"],
+            product_name=goods["product_name"],
+            price=goods["price"],
+            discounted_price=goods["discounted_price"],
         )
-        for product in products
+        for goods in goods_list
     ]
 
-    return response
+    return GetGoodsPageResponse(
+        products=response, next_search_after=next_search_after, pit_id=new_pit_id
+    )
+
+
+async def close_pit_handler(
+    pit_id: str, es_repo: ElasticsearchRepository = Depends(ElasticsearchRepository)
+):
+    await es_repo.close_pit(pit_id=pit_id)
+    return {"message": "PIT closed successfully"}

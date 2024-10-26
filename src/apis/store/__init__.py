@@ -9,7 +9,7 @@ store_router.add_api_route(
     methods=["GET"],
     path="/goods",
     endpoint=goods.get_goods_list_handler,
-    response_model=list[goods.GetGoodsResponse],
+    response_model=goods.GetGoodsPageResponse,
     status_code=status.HTTP_200_OK,
 )
 
@@ -25,7 +25,7 @@ store_router.add_api_route(
     methods=["GET"],
     path="/search",
     endpoint=goods.search_goods_handler,
-    response_model=list[goods.GetGoodsResponse],
+    response_model=goods.GetGoodsPageResponse,
     status_code=status.HTTP_200_OK,
 )
 
@@ -94,4 +94,11 @@ store_router.add_api_route(
     path="/cart/{product_id}",
     endpoint=cart.update_cart_quantity_handler,
     status_code=status.HTTP_200_OK,
+)
+
+store_router.add_api_route(
+    methods=["DELETE"],
+    path="/close-pit",
+    endpoint=goods.close_pit_handler,
+    status_code=status.HTTP_204_NO_CONTENT,
 )

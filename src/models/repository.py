@@ -186,8 +186,23 @@ class UserRepository:
 class ElasticsearchRepository:
     def __init__(self, es: AsyncElasticsearch = Depends(get_elasticsearch_client)):
         self.es = es
+        self.size = 10
 
-    async def search_products(self, keyword: str) -> List[dict]:
+    async def create_pit(self) -> str:
+        pit_response = await self.es.open_point_in_time(
+            index="products", keep_alive="5m"
+        )
+        return pit_response["id"]
+
+    async def close_pit(self, pit_id: str):
+        await self.es.close_point_in_time(body={"id": pit_id})
+
+    async def search_products(
+        self, keyword: str, search_after: list[int] = None, pit_id: str = None
+    ) -> (list[dict], list[int], str):
+        if not pit_id:
+            pit_id = await self.create_pit()
+
         def get_search_query(keyword: str) -> dict:
             return {
                 "bool": {
@@ -206,39 +221,71 @@ class ElasticsearchRepository:
                 }
             }
 
-        def get_filter_query() -> dict:
-            return {"term": {"use_status": True}}
-
         query = {
+            "size": self.size,
             "query": {
                 "bool": {
                     "must": [get_search_query(keyword)],
-                    "filter": [get_filter_query()],
+                    "filter": [{"term": {"use_status": True}}],
                 }
             },
-            "sort": [{"id": {"order": "desc"}}],
+            "pit": {"id": pit_id, "keep_alive": "2m"},
+            "sort": [{"id": {"order": "desc"}}, {"_shard_doc": "desc"}],
         }
 
-        response = await self.es.search(index="products", body=query)
-        return [hit["_source"] for hit in response["hits"]["hits"]]
+        if search_after and search_after != [0]:
+            query["search_after"] = search_after
+
+        response = await self.es.search(body=query)
+        products = [hit["_source"] for hit in response["hits"]["hits"]]
+
+        if products and len(products) == self.size:
+            next_search_after = response["hits"]["hits"][-1]["sort"]
+        else:
+            next_search_after = None
+
+        return products, next_search_after, pit_id
 
     async def get_product_by_id(self, product_id: str) -> dict:
         response = await self.es.get(index="products", id=product_id)
         return response["_source"] if response["found"] else None
 
-    async def get_product_list(self) -> List[dict]:
-        response = await self.es.search(
-            index="products",
-            body={
-                "query": {"bool": {"filter": [{"term": {"use_status": True}}]}},
-                "sort": [{"id": {"order": "desc"}}],
-            },
-        )
-        return [hit["_source"] for hit in response["hits"]["hits"]]
+    async def get_product_list(
+        self, search_after: list[int] = None, pit_id: str = None
+    ) -> (list[dict], list[int], str):
+        if not pit_id:
+            pit_id = await self.create_pit()
+
+        query = {
+            "query": {"bool": {"filter": [{"term": {"use_status": True}}]}},
+            "sort": [{"id": {"order": "desc"}}],
+            "size": self.size,
+            "pit": {"id": pit_id, "keep_alive": "2m"},
+        }
+
+        if search_after and search_after != [0]:
+            query["search_after"] = search_after
+
+        response = await self.es.search(body=query)
+        products = [hit["_source"] for hit in response["hits"]["hits"]]
+
+        if products and len(products) == self.size:
+            next_search_after = response["hits"]["hits"][-1]["sort"]
+        else:
+            next_search_after = None
+
+        return products, next_search_after, pit_id
 
     async def get_product_list_by_category(
-        self, category_type: str, category_id: str
-    ) -> List[dict]:
+        self,
+        category_type: str,
+        category_id: str,
+        search_after: list[int] = None,
+        pit_id: str = None,
+    ) -> (list[dict], list[int], str):
+        if not pit_id:
+            pit_id = await self.create_pit()
+
         # 카테고리별 필드 설정 (대분류, 중분류, 소분류)
         category_field = {
             "primary": "category_id_1",  # 대분류
@@ -249,21 +296,32 @@ class ElasticsearchRepository:
         if category_field is None:
             return None
 
-        response = await self.es.search(
-            index="products",
-            body={
-                "query": {
-                    "bool": {
-                        "filter": [
-                            {"term": {category_field: category_id}},  # 카테고리 필드로 필터링
-                            {"term": {"use_status": True}},
-                        ]
-                    }
-                },
-                "sort": [{"id": {"order": "desc"}}],
+        query = {
+            "query": {
+                "bool": {
+                    "filter": [
+                        {"term": {category_field: category_id}},  # 카테고리 필드로 필터링
+                        {"term": {"use_status": True}},
+                    ]
+                }
             },
-        )
-        return [hit["_source"] for hit in response["hits"]["hits"]]
+            "sort": [{"id": {"order": "desc"}}],
+            "size": self.size,
+            "pit": {"id": pit_id, "keep_alive": "2m"},
+        }
+
+        if search_after and search_after != [0]:
+            query["search_after"] = search_after
+
+        response = await self.es.search(index="products", body=query)
+        products = [hit["_source"] for hit in response["hits"]["hits"]]
+
+        if products and len(products) == self.size:
+            next_search_after = response["hits"]["hits"][-1]["sort"]
+        else:
+            next_search_after = None
+
+        return products, next_search_after, pit_id
 
 
 class CartRepository:
