@@ -186,7 +186,7 @@ class UserRepository:
 class ElasticsearchRepository:
     def __init__(self, es: AsyncElasticsearch = Depends(get_elasticsearch_client)):
         self.es = es
-        self.size = 3
+        self.size = 10
 
     async def create_pit(self) -> str:
         pit_response = await self.es.open_point_in_time(
