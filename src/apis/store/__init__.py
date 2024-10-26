@@ -95,3 +95,10 @@ store_router.add_api_route(
     endpoint=cart.update_cart_quantity_handler,
     status_code=status.HTTP_200_OK,
 )
+
+store_router.add_api_route(
+    methods=["DELETE"],
+    path="/close-pit",
+    endpoint=goods.close_pit_handler,
+    status_code=status.HTTP_204_NO_CONTENT,
+)

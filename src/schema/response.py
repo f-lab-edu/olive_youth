@@ -81,3 +81,4 @@ class CartResponse(BaseModel):
 class GetGoodsPageResponse(BaseModel):
     products: list[GetGoodsListResponse]
     next_search_after: Optional[list[int]]
+    pit_id: Optional[str]
