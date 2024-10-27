@@ -313,7 +313,7 @@ class ElasticsearchRepository:
         if search_after and search_after != [0]:
             query["search_after"] = search_after
 
-        response = await self.es.search(index="products", body=query)
+        response = await self.es.search(body=query)
         products = [hit["_source"] for hit in response["hits"]["hits"]]
 
         if products and len(products) == self.size:
