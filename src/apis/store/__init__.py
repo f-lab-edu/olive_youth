@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status
 
-from src.apis.store import cart, goods, order, product
+from src.apis.store import cart, goods, order, payment, product
 from src.schema import response
 
 store_router = APIRouter(tags=["store"])
@@ -93,6 +93,14 @@ store_router.add_api_route(
     methods=["PUT"],
     path="/cart/{product_id}",
     endpoint=cart.update_cart_quantity_handler,
+    status_code=status.HTTP_200_OK,
+)
+
+store_router.add_api_route(
+    methods=["GET"],
+    path="/checkout",
+    endpoint=order.get_checkout_handler,
+    response_model=response.GetCheckoutResponse,
     status_code=status.HTTP_200_OK,
 )
 
