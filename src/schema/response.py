@@ -85,8 +85,16 @@ class ShippingInfo(BaseModel):
     delivery_message: str = Field(None, description="배송 메시지")
 
 
-class GetCheckoutResponse(BaseModel):
+class OrderInfo(BaseModel):
     user_id: int = Field(description="주문자 ID")
+    name: str = Field(description="이름")
+    email: str = Field(description="이메일")
+    phone_number: str = Field(description="연락처")
+
+
+class GetCheckoutResponse(BaseModel):
+    order_no: str = Field(description="주문 번호")
+    order_info: OrderInfo
     shipping_info: ShippingInfo
     items: list[CartResponse]
     total_price: int = Field(description="총 상품 금액")

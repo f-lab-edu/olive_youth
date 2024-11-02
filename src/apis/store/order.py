@@ -1,7 +1,9 @@
+from datetime import datetime
+
 from fastapi import Cookie, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
-from src.schema.response import GetCheckoutResponse, ShippingInfo
+from src.schema.response import GetCheckoutResponse, OrderInfo, ShippingInfo
 from src.service.auth import get_session_data
 from src.service.cart import CartService
 from src.service.order import OrderService
@@ -31,23 +33,36 @@ async def get_checkout_handler(
     if not user:
         raise HTTPException(status_code=404, detail="User Not Found")
 
+    # 주문자 정보
+    order_info = OrderInfo(
+        user_id=user.id,
+        name=user.buyer.name,
+        email=user.email,
+        phone_number=user.buyer.phone_number,
+    )
+    # 배송지 정보
     shipping_info = ShippingInfo(
         recipient_name=user.buyer.name,
         contact_number=user.buyer.phone_number,
         delivery_address=user.buyer.address,
     )
-
+    # 주문 상품 목록
     cart_items = await cart_service.get_cart(user_id=user_id)
     if not cart_items:
         raise HTTPException(status_code=400, detail="Cart is empty")
-
+    # 총 상품 금액
     total_price = sum(
         (item.discounted_price if item.discounted_price else item.price) * item.quantity
         for item in cart_items
     )
+    # 주문 번호 생성
+    now = datetime.now()
+    date_str = now.strftime("%y%m%d%H%M")  # YYMMDDHHMM 형식
+    order_no = f"Y{date_str}{user_id}"
 
     return GetCheckoutResponse(
-        user_id=user_id,
+        order_no=order_no,
+        order_info=order_info,
         shipping_info=shipping_info,
         items=cart_items,
         total_price=total_price,
